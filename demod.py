@@ -20,11 +20,9 @@ from tools import Decimator, expect_almost_int
 
 parser = argparse.ArgumentParser(description='Tool to demodulate and decimate channels')
 parser.add_argument('--ffl', type=expand_ffl, help="ffl file to read input from")
-# source_group = parser.add_mutually_exclusive_group(required=True)
-# source_groupp.add_argument(--timeseries)
 parser.add_argument('--chan', help="channel name, needed if source contains multiple channels")
 parser.add_argument('--f_demod', required=True, type=int,  # todo: allow a list of multiple freqs
-                    help="demodulation frequency, must be integer")
+                    help="demodulation frequency, must be integer. When set to zero, the data is low-passed, not demodulated")
 parser.add_argument('--f_out', required=True, type=int,
                     help="sample frequency of output signal, must be a sub-multiple of the one of the input signal")
 parser.add_argument('--start', type=to_gps,
@@ -33,7 +31,6 @@ parser.add_argument('--end', type=to_gps,
                     help='gps or utc time of end of period to process, accepts any valid input to gwpy.to_gps')
 # todo add duration instead of end?
 # todo: add multiple channels, multiple f_demod?? YAGNI
-# todo: just decimate if f_demod=0?
 
 args = parser.parse_args()
 
@@ -62,8 +59,9 @@ dur = args.end - args.start
 
 # check that fdemod > f_out/2, to avoid folded frequencies around DC
 
-
-
+if args.f_demod:
+    assert args.f_out < 2 * args.f_demod, \
+        'output frequency must be smaller than twice the demodulation frequency'
 
 
 # get a bit of data to determine f_in
@@ -84,7 +82,8 @@ nchunk = int(dur // tchunk)
 
 t = np.arange(lchunk) / f_in
 
-lo = 2**.5 * np.exp(-2j * np.pi * args.f_demod * t) # local oscillator
+if args.f_demod:
+    lo = 2**.5 * np.exp(-2j * np.pi * args.f_demod * t) # local oscillator
 
 out = []
 
@@ -92,9 +91,9 @@ timer = LoopTimer(nchunk, 'demodulating')
 for ichunk in range(nchunk):
     with getChannel(args.chan, args.start + ichunk * tchunk, tchunk) as data:
         chunk = data.data
-        # chunk = x[ichunk * lchunk:(ichunk+1) * lchunk]
-        # todo: skip this to do simple decimation when fdemod == 0?
-        out.append(decimator.calc(chunk * lo))
+        if args.f_demod:
+            chunk *= lo
+        out.append(decimator.calc(chunk))
     timer.end(ichunk)
 out = np.concatenate(out)
 

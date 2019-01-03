@@ -146,6 +146,7 @@ data = TimeSeries.read(args.input)  # assume single channel for now
 # cannot store private attributes, get it from name
 f_demod = int(data.name.split('_')[-1])
 fs = 1 / data.dt.value
+twosided = np.iscomplexobj(data.value)
 
 tmax = len(data) * data.dt.value
 xgrid = np.linspace(0, tmax, 1000)  # for extrapolation
@@ -161,9 +162,12 @@ dummy_ax.axis('off')
 freq_cut_ax.set_yticklabels([])
 
 # make some dummy plots, in which the real data is later inserted
+if twosided:
+    extent = (0, tmax, f_demod - fs / 2, f_demod + fs / 2)
+else:
+    extent = (0, tmax, 0, fs / 2)
 spec_im = spec_ax.imshow(np.full((2, 2), np.nan), aspect='auto',
-                         extent=(0, tmax, f_demod - fs / 2, f_demod + fs / 2), origin='lower')
-# fixme: 0..fs/2 in case f_demod=0
+                         extent=extent, origin='lower')
 
 spec_im.get_cmap().set_bad(color='grey')  # https://stackoverflow.com/a/46649061
 
