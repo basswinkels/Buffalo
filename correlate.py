@@ -68,11 +68,14 @@ if args.chans is None:  # get all chans in source
 
 
 # get all data and determine union of all spans
+start = float(args.start) # get rid of LIGOTimeGPS
+end = float(args.end)
 
-span = seg.Segment(float(args.start), float(args.end))  # get rid of LIGOTimeGPS
+span = seg.Segment(start, end)
 ref_series = []
 for chan in args.chans:
-    data = TimeSeries.read(args.source, chan)
+    logger.info('Reading target channel %s', chan)
+    data = TimeSeries.read(args.source, chan, start=start, end=end)
     span &= data.span
     ref_series.append(data)
 
@@ -122,23 +125,28 @@ def process_chunk(chunk_names):
         # note that opening an ffl fails on rare occasions, probably if it happens when file is updated
         # retry in a loop if this happens?
         for ichan, name in enumerate(chunk_names):
-            with ffl.getChannel(name, *span) as aux:
-                auxdata = aux.data
-                try:
-                    auxdata = fast_resample(auxdata, args.f_target / aux.fsample)
-                except ValueError:
-                    logger.exception('Error while resampling channel %s, skipping', name)
-                    continue
-                if len(auxdata) != nsamp:
-                    print('Trouble with channel %s with fsample %g, it has length %i instead of %i' % (
-                        name, aux.fsample, len(auxdata), nsamp))
-                    if len(auxdata) > nsamp:  # ugly hack
-                        auxdata = auxdata[:nsamp]
-                        print('Fixed!')
-                    else:
-                        print('Skipping!')
+            try:
+                with ffl.getChannel(name, *span) as aux:
+                    auxdata = aux.data
+                    try:
+                        auxdata = fast_resample(auxdata, args.f_target / aux.fsample)
+                    except ValueError:
+                        logger.exception('Error while resampling channel %s, skipping', name)
                         continue
-                auxdata = auxdata[good]
+                    if len(auxdata) != nsamp:
+                        print('Trouble with channel %s with fsample %g, it has length %i instead of %i' % (
+                            name, aux.fsample, len(auxdata), nsamp))
+                        if len(auxdata) > nsamp:  # ugly hack
+                            auxdata = auxdata[:nsamp]
+                            print('Fixed!')
+                        else:
+                            print('Skipping!')
+                            continue
+                    auxdata = auxdata[good]
+            except Exception:
+                log.exception('Caught error for channel %s, skipping ...', name)
+                continue
+
 
             if not np.isfinite(auxdata).all():
                 #print('Channel %s contains non-finite values! You might see some Intel warning' % name)
