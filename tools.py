@@ -199,8 +199,8 @@ def get_timeseries(source, chan, start, stop):
     else:
         return TimeSeries.read(source, xx)"""
 
-NRETRY = 5
-TSLEEP = 1
+NRETRY = 20
+TSLEEP = 5
 def retry_on_ioerror(fun):
     # does not work as decorator on multiprocessing worker function
     # see https://stackoverflow.com/a/8805244
@@ -211,12 +211,12 @@ def retry_on_ioerror(fun):
             except IOError as err:
                 if i < NRETRY - 1:
                     logger.warning('caught an IOError for function %s, retrying after %.1f second',
-                                   fun.func_name, TSLEEP)
+                                   fun, TSLEEP)
                     time.sleep(TSLEEP)
                     continue
                 else:
                     logger.warning('caught %d IOErrors for function %s, giving up',
-                                   NRETRY, fun.func_name)
+                                   NRETRY, fun)
                     raise
 
     return wrapper
