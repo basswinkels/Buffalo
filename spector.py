@@ -10,7 +10,7 @@ import warnings
 
 from scipy.interpolate import InterpolatedUnivariateSpline
 from matplotlib.mlab import specgram
-from tools import next_smaller, next_bigger, blockaver, sl2bitvect
+from tools import next_smaller, next_bigger, blockaver, sl2bitvect, expect_almost_int
 from gwpy.timeseries import TimeSeries
 import gwpy.segments as seg
 
@@ -19,12 +19,6 @@ from gwpy.time import from_gps
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
-
-# make list of allowed nfft, with goal of making a dt with nice sample rate
-NFFT = []
-for e in range(1, 7):
-    NFFT.extend(2*m*10**e for m in [1, 2, 5])  # factor 2 since dt is half window size bacause of noverlap
-# fixme start from allowed dt and calculate nfft from that
 
 class Points(object):
     def __init__(self, ax, color):
@@ -145,15 +139,40 @@ args = parser.parse_args()
 data = TimeSeries.read(args.input)  # assume single channel for now
 # cannot store private attributes, get it from name
 f_demod = int(data.name.split('_')[-1])
-fs = 1 / data.dt.value
+f_in = 1 / data.dt.value
 twosided = np.iscomplexobj(data.value)
+
+## do time math after f_in is known
+
+# sample rate needs to be compatible with Virgo rates  # TODO 2**n for LIGO
+allowed_f_out = [m * 10.**e for e in range(-4, 3) for m in (1, 2, 5)]
+
+allowed_nfft = []
+for f_out in allowed_f_out[::-1]:
+    nfft = f_in * 2 / f_out  # factor 2 due to half-overlapping windows
+    if nfft < 10:
+        continue
+    nfft = expect_almost_int(nfft)
+    assert nfft % 2 == 0
+
+    nwin = len(data.value) // (nfft // 2) - 1  # ignoring trimming
+    if nwin < 10:
+        continue
+    allowed_nfft.append(nfft)
+
+assert nfft, 'no valid nfft'
+
+print 'allowed_nfft:', allowed_nfft
 
 tmax = len(data) * data.dt.value
 xgrid = np.linspace(0, tmax, 1000)  # for extrapolation
 
 
+## prepare plots
+
 fig, [[time_cut_ax, dummy_ax], [spec_ax, freq_cut_ax]] = plt.subplots(
-    2, 2, gridspec_kw={'width_ratios': [20, 1], 'height_ratios': [1,10], 'hspace': 0, 'wspace': 0})
+    2, 2, gridspec_kw={'width_ratios': [20, 1], 'height_ratios': [1,10],
+                       'hspace': 0, 'wspace': 0})
 fig.tight_layout()
 
 
@@ -163,9 +182,9 @@ freq_cut_ax.set_yticklabels([])
 
 # make some dummy plots, in which the real data is later inserted
 if twosided:
-    extent = (0, tmax, f_demod - fs / 2, f_demod + fs / 2)
+    extent = (0, tmax, f_demod - f_in / 2, f_demod + f_in / 2)
 else:
-    extent = (0, tmax, 0, fs / 2)
+    extent = (0, tmax, 0, f_in / 2)
 spec_im = spec_ax.imshow(np.full((2, 2), np.nan), aspect='auto',
                          extent=extent, origin='lower')
 
@@ -207,7 +226,7 @@ def update_specgram():
     dd = data.copy()
     dd[mask] = np.nan
 
-    S, F, T = specgram(x=dd, NFFT=nfft, Fs=fs, noverlap=nfft/2)
+    S, F, T = specgram(x=dd, NFFT=nfft, Fs=f_in, noverlap=nfft // 2)
 
     F += f_demod
     
@@ -219,8 +238,8 @@ def update_specgram():
     T = blockaver(T, navg)
 
     # sanity check
-    assert np.isclose(F[1] - F[0], fs/nfft)
-    assert np.isclose(T[1] - T[0], nfft*navg/(fs*2))
+    assert np.isclose(F[1] - F[0], f_in / nfft)
+    assert np.isclose(T[1] - T[0], nfft * navg / (f_in * 2))
 
     # prevent log(0)
     S[S <= 0] = np.nan  # this causes a warning, don't bother
@@ -236,12 +255,12 @@ def update_specgram():
 navg = 1
 cid_click = None
 state = 0
-nfft = 1000
+nfft = allowed_nfft[len(allowed_nfft) // 2]
 
 
 def update_title():
     fig.suptitle('state = %i, nfft = %i, navg = %i, $\Delta t$ = %g, $\Delta f$ = %g'
-                 % (state, nfft, navg, nfft*navg/(fs*2), fs/nfft))
+                 % (state, nfft, navg, nfft * navg / (f_in * 2), f_in / nfft))
 
 
 def on_key(event):
@@ -262,10 +281,10 @@ def on_key(event):
         points[state].draw()'''
     
     if event.key == ',':
-        nfft = next_smaller(NFFT, nfft)
+        nfft = next_smaller(allowed_nfft, nfft)
         update_specgram()
     if event.key == '.':
-        nfft = next_bigger(NFFT, nfft)
+        nfft = next_bigger(allowed_nfft, nfft)
         update_specgram()
     
     if event.key == '[' and navg > 1:
