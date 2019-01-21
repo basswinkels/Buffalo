@@ -98,7 +98,7 @@ for ichunk in range(nchunk):
     timer.end(ichunk)
 out = np.concatenate(out)
 
-out_name = 'demod_%s_%i.h5' % (args.chan, args.f_demod)
+out_name = 'demod_%i_%s-%i-%i.h5' % (args.f_demod, args.chan, args.start, dur)
 logger.info('Writing results to %s', out_name)
 
 path = '%s_demod_%i' % (args.chan, args.f_demod)
