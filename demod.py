@@ -109,8 +109,8 @@ with h5py.File(out_name, 'w') as out_file:
 
 
     out.write(out_file, path=path)
-    # out_file[path].attrs['f_demod'] = args.f_demod  # breaks TimeSeries.read, doesn't like unknown attrs
-    # store it in the name for now
-
+    dataset = out_file[path]
+    # storing attrs on dateset itself breaks TimeSeries.read, use parent instead
+    dataset.parent.attrs['f_demod'] = args.f_demod
 
 logger.info('Finished!')
