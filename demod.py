@@ -7,10 +7,7 @@ import numpy as np
 
 import logging
 from gwpy.time import to_gps
-from gwpy.timeseries import TimeSeries
-import h5py
 from virgotools.frame_lib import expand_ffl
-from tools import Decimator, expect_almost_int
 
 
 ## parse command line
@@ -34,7 +31,11 @@ parser.add_argument('--end', type=to_gps,
 
 args = parser.parse_args()
 
-# slow imports only when parsing is succesful
+# slow imports only when parsing is successful
+
+from gwpy.timeseries import TimeSeries
+import h5py
+from tools import Decimator, expect_almost_int
 
 
 # hack to ensure 100 sec segments from frame
