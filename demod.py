@@ -93,7 +93,7 @@ for ichunk in range(nchunk):
     with getChannel(args.chan, args.start + ichunk * tchunk, tchunk) as data:
         chunk = data.data
         if args.f_demod:
-            chunk *= lo
+            chunk = chunk * lo  # *= doesn't convert to complex
         out.append(decimator.calc(chunk))
     timer.end(ichunk)
 out = np.concatenate(out)
