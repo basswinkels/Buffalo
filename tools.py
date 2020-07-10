@@ -24,7 +24,7 @@ def factorize(n, factors):
             rest //= fact
             result.append(fact)
     if rest != 1:
-        raise ValueError('Could not factorize %i using %s' % (n, factors))
+        raise ValueError("Could not factorize %i using %s" % (n, factors))
     return result
 
 
@@ -32,8 +32,7 @@ class Decimator(object):
     """decimator that keeps state and handles large ratios with multiple passes"""
 
     # calculate filter coefs only once
-    BA = dict((fact, sig.cheby1(filt_order, 0.05, 0.8 / fact))
-              for fact in factors)
+    BA = dict((fact, sig.cheby1(filt_order, 0.05, 0.8 / fact)) for fact in factors)
 
     def __init__(self, ratio):
         self.states = None
@@ -42,8 +41,9 @@ class Decimator(object):
     def calc(self, idata):
         """decimates one chunck of data"""
         if self.states is None:
-            self.states = [idata[0] * sig.lfilter_zi(*self.BA[ratio])
-                           for ratio in self.ratios]
+            self.states = [
+                idata[0] * sig.lfilter_zi(*self.BA[ratio]) for ratio in self.ratios
+            ]
         odata = idata
         for i, ratio in enumerate(self.ratios):
             b, a = self.BA[ratio]
@@ -89,8 +89,8 @@ def fill_gaps(x):
     if v.all():
         return
 
-    igood, = v.nonzero()
-    ibad, = (~v).nonzero()
+    (igood,) = v.nonzero()
+    (ibad,) = (~v).nonzero()
 
     x[ibad] = np.interp(ibad, igood, x[igood])
 
@@ -100,8 +100,11 @@ def read_virgo_timeseries(source, channel, gstart, gstop_or_dur):
     # TODO use gwpy
 
     from virgotools import getChannel
+
     with getChannel(source, channel, gstart, gstop_or_dur) as data:
-        return TimeSeries(data.data, unit=data.unit, t0=gstart, dt=data.dt, channel=channel)
+        return TimeSeries(
+            data.data, unit=data.unit, t0=gstart, dt=data.dt, channel=channel
+        )
 
 
 def blockaver(x, n, axis=-1):
@@ -167,11 +170,11 @@ def fast_resample(x, ratio):
     """
 
     if ratio > 1:  # upsample
-        ratio = expect_almost_int(ratio, 'upsample ratio is not integer')
+        ratio = expect_almost_int(ratio, "upsample ratio is not integer")
         x = np.repeat(x, ratio)
 
     elif ratio < 1:  # downsample
-        ratio = expect_almost_int(1.0 / ratio, 'downsample ratio is not integer')
+        ratio = expect_almost_int(1.0 / ratio, "downsample ratio is not integer")
         x = blockaver(x, ratio)
 
     return x
@@ -183,18 +186,26 @@ def fast_resample_timeseries(ts, f_new):
         return ts  # shortcut
 
     data = fast_resample(ts.value, ratio)
-    return TimeSeries(data, unit=ts.unit, t0=ts.t0, sample_rate=f_new,
-                      channel=ts.channel, name=ts.name)
+    return TimeSeries(
+        data,
+        unit=ts.unit,
+        t0=ts.t0,
+        sample_rate=f_new,
+        channel=ts.channel,
+        name=ts.name,
+    )
 
 
 def poly2latex(p, var):
     assert len(p) >= 2
     rp = p[::-1]
-    result = r'$\mathtt{%.2e} + \mathtt{%.2e} * %s' % (rp[0], rp[1], var)
-    result = ' + '.join([result] + [r'\mathtt{%.2e} * %s^{%i}' % (ki, var, i)
-                                    for i, ki in enumerate(rp[2:], 2)])
-    result = result.replace('_', r'\_')
-    return result + '$'
+    result = r"$\mathtt{%.2e} + \mathtt{%.2e} * %s" % (rp[0], rp[1], var)
+    result = " + ".join(
+        [result]
+        + [r"\mathtt{%.2e} * %s^{%i}" % (ki, var, i) for i, ki in enumerate(rp[2:], 2)]
+    )
+    result = result.replace("_", r"\_")
+    return result + "$"
 
 
 """
@@ -232,13 +243,17 @@ def retry_on_ioerror(fun):
                 return fun(*args, **kwargs)
             except IOError:
                 if i < NRETRY - 1:
-                    logger.warning('caught an IOError for function %s, retrying after %.1f second',
-                                   fun, TSLEEP)
+                    logger.warning(
+                        "caught an IOError for function %s, retrying after %.1f second",
+                        fun,
+                        TSLEEP,
+                    )
                     time.sleep(TSLEEP)
                     continue
                 else:
-                    logger.warning('caught %d IOErrors for function %s, giving up',
-                                   NRETRY, fun)
+                    logger.warning(
+                        "caught %d IOErrors for function %s, giving up", NRETRY, fun
+                    )
                     raise
 
     return wrapper
