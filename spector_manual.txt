@@ -1,0 +1,51 @@
+Very quick manual:
+
+For all tools, you can get help for the command line options using -h: 
+python tool.py -h
+or (in case of chmod +x)
+./tool.py -h
+
+
+spector.py has a (very preliminary) interface using the keyboard and mouse:
+
+* keys "," and "."      decrease/increase fft length
+
+* keys "[" and "]"      decreas/increase number of averages
+
+numbers (see state=XX in the plot title)
+* the "0" key           switch all mouse commands off, useful when you want to zoom/pan
+ 
+for the next 3, left click adds a point, right click removes nearest point
+* the "1" key           used for drawing a line by hand, not used yet
+
+* the "2" key           used to define the line for the minimum frequency of the search range 
+
+* the "3" key           used to define the line for the maximum frequency of the search range
+
+* the "9" key           used for masking out segments (e.g. an unlock), need to left-click twice at both edges of the segment. right clicking on a segment removes it  
+
+* the "d" key           when in mode 1/2/3: remove all points of the current line
+
+* the "m" key           find bin with the maximum psd for every frequency bin between min and max lines. pressing again removes the points
+
+* the "M" key           save frequency of maximum points to file spectool_freq.h5
+
+* the "b" key           calculate the BRMS between min and max lines. pressing again removes the BRMS plot
+
+* the "B" key           save BRMS to file spectool_brms.h5
+
+* the "H" key           reset color axis
+
+
+Apart from this, there are the standard matplotlib keyboard shortcuts. Some of the most useful:
+
+* the "o" key           toggle zoom cursor on/off, after this you can drag a rectangle to zoom in
+    
+* the "p" key           toggle pan/drag cursor on/off, to move plot around
+(it is best to set the mouse mode to "0" before using the above two)
+
+* the "x" key           pressing this while zooming/panning will restrict them to the x-axis           
+
+* the "y" key           pressing this while zooming/panning will restrict them to the y-axis
+
+see https://matplotlib.org/users/navigation_toolbar.html for a complete list
