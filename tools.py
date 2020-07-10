@@ -58,11 +58,13 @@ class Decimator(object):
 
 
 def expect_almost_int(x, error_msg="expected something close to integer"):
-    """converts a float to an int and raises an error (with optional message) in case it is not close to integer"""
+    """converts a float to an int and raises an error (with optional message) in case it
+    is not close to integer"""
     rx = int(round(x))
     if not np.isclose(x, rx):
         raise ValueError(error_msg)
     return rx
+
 
 # see bisect documentation
 def next_smaller(a, x):
@@ -94,17 +96,17 @@ def fill_gaps(x):
 
 
 def read_virgo_timeseries(source, channel, gstart, gstop_or_dur):
-    """quick and dirty function to read virgo data as timeseries. this should one day be included in gwpy"""
+    """quick and dirty function to read virgo data as timeseries"""
+    # TODO use gwpy
 
     from virgotools import getChannel
     with getChannel(source, channel, gstart, gstop_or_dur) as data:
         return TimeSeries(data.data, unit=data.unit, t0=gstart, dt=data.dt, channel=channel)
 
 
-
 def blockaver(x, n, axis=-1):
-    """do n-sample averaging along given axis. If the length along the axis is not an exact multiple of n,
-    the remaining values are ignored"""
+    """do n-sample averaging along given axis. If the length along the axis is not an
+    exact multiple of n, the remaining values are ignored"""
 
     # shortcut for common case
     if x.ndim == 1:
@@ -132,11 +134,12 @@ def sl2bitvect(known_seg, fs, active_segs):
     t0 = known_seg[0]
     n = expect_almost_int(abs(known_seg) * fs)
     bit_vect = np.zeros(n, dtype=bool)
-    for active_seg in seg.SegmentList([known_seg]) & active_segs:  # & only works between two segmentlists
+    for active_seg in seg.SegmentList([known_seg]) & active_segs:
         istart = int(np.ceil((active_seg[0] - t0) * fs))
         istop = int(np.ceil((active_seg[1] - t0) * fs))
         bit_vect[istart:istop] = 1
     return bit_vect
+
 
 def StateVect2ts(known_segs, fs, active_segs):
     assert len(known_segs) == 1  # for now
@@ -146,7 +149,7 @@ def StateVect2ts(known_segs, fs, active_segs):
         t0 = known_seg[0]
         n = expect_almost_int(abs(known_seg) * fs)
         bit_vect = np.zeros(n, dtype=bool)
-        for active_seg in seg.SegmentList([known_seg]) & active_segs:  # & only works between two segmentlists
+        for active_seg in seg.SegmentList([known_seg]) & active_segs:
             istart = int(np.ceil((active_seg[0] - t0) * fs))
             istop = int(np.ceil((active_seg[1] - t0) * fs))
             bit_vect[istart:istop] = 1
@@ -157,9 +160,10 @@ def StateVect2ts(known_segs, fs, active_segs):
 def fast_resample(x, ratio):
     """crude up/down sampling of signals without anti-alias
 
-    ratio should be f_new / f_old, so if it is larger than 1 the signal will be upsampled,
-    while smaller than 1 means downsampling. resampling is done without anti-alias filtering,
-    which is fast and causes no transients, but might suffer from aliasing
+    ratio should be f_new / f_old, so if it is larger than 1 the signal will be
+    upsampled, while smaller than 1 means downsampling. resampling is done without
+    anti-alias filtering, which is fast and causes no transients, but might suffer from
+    aliasing
     """
 
     if ratio > 1:  # upsample
@@ -186,10 +190,12 @@ def fast_resample_timeseries(ts, f_new):
 def poly2latex(p, var):
     assert len(p) >= 2
     rp = p[::-1]
-    result = '$\mathtt{%.2e} + \mathtt{%.2e} * %s' % (rp[0], rp[1], var)
-    result = ' + '.join([result] + ['\mathtt{%.2e} * %s^{%i}' % (ki, var, i) for i, ki in enumerate(rp[2:], 2)])
-    result = result.replace('_', '\_')
+    result = r'$\mathtt{%.2e} + \mathtt{%.2e} * %s' % (rp[0], rp[1], var)
+    result = ' + '.join([result] + [r'\mathtt{%.2e} * %s^{%i}' % (ki, var, i)
+                                    for i, ki in enumerate(rp[2:], 2)])
+    result = result.replace('_', r'\_')
     return result + '$'
+
 
 """
 
@@ -212,8 +218,11 @@ def get_timeseries(source, chan, start, stop):
     else:
         return TimeSeries.read(source, xx)"""
 
+
 NRETRY = 20
 TSLEEP = 5
+
+
 def retry_on_ioerror(fun):
     # does not work as decorator on multiprocessing worker function
     # see https://stackoverflow.com/a/8805244
@@ -221,7 +230,7 @@ def retry_on_ioerror(fun):
         for i in range(NRETRY):
             try:
                 return fun(*args, **kwargs)
-            except IOError as err:
+            except IOError:
                 if i < NRETRY - 1:
                     logger.warning('caught an IOError for function %s, retrying after %.1f second',
                                    fun, TSLEEP)
