@@ -14,7 +14,7 @@ parser.add_argument('--f_target', required=True, type=float,
 parser.add_argument('--aux_source', required=True,
                     help="source for auxiliary channels (name of ffl for now)")
 parser.add_argument('--fit_order', type=int, default=1, help="order of polynomial fit (default: %(default)s)")
-parser.add_argument('--ntop', type=int, default=100, help="number of winning channels to report (default: %(default)s)")
+parser.add_argument('--ntop', type=int, default=200, help="number of winning channels to report (default: %(default)s)")
 parser.add_argument('--start', type=to_gps, default=-float('inf'),
                     help='gps time of start of period to process, accepts any valid input to gwpy.to_gps.'
                          ' Can be omitted if source is a finite timeseries')
@@ -26,7 +26,7 @@ args = parser.parse_args()
 
 # hardcode for now
 # bl_patterns = ['*max', '*min', 'V1:VAC*', 'V1:Daq*', '*rms']
-bl_patterns = ['*max', '*min']
+bl_patterns = ['*max', '*min', '*BRMSMon_THR*', '*_Tolm_*']
 
 # slow imports when parsing went ok
 
@@ -41,7 +41,8 @@ from virgotools import *
 from virgotools.frame_lib import expand_ffl
 from gwpy.timeseries import TimeSeries
 import gwpy.segments as seg
-from tools import expect_almost_int, fast_resample, fast_resample_timeseries, retry_on_ioerror
+from tools import expect_almost_int, fast_resample, fast_resample_timeseries,\
+    retry_on_ioerror, read_virgo_timeseries, fill_gaps
 
 
 # suppress warning of ill-conditioned polyfit
@@ -75,7 +76,12 @@ span = seg.Segment(start, end)
 ref_series = []
 for chan in args.chans:
     logger.info('Reading target channel %s', chan)
-    data = TimeSeries.read(args.source, chan, start=start, end=end)
+    if args.source.endswith('.ffl'):
+        data = read_virgo_timeseries(args.source, chan, start, end)
+    else:
+        # hack, read a bit extra if possible, gets cropped later
+        data = TimeSeries.read(args.source, chan, start=start-100, end=end+100)
+    logger.info('data.span: %s', data.span)
     span &= data.span
     ref_series.append(data)
 
@@ -148,10 +154,12 @@ def process_chunk(chunk_names):
                 continue
 
 
-            if not np.isfinite(auxdata).all():
-                #print('Channel %s contains non-finite values! You might see some Intel warning' % name)
-                logger.info('Channel %s contains non-finite values! Skipping ...', name)
-                continue
+            #if not np.isfinite(auxdata).all():
+            #    #print('Channel %s contains non-finite values! You might see some Intel warning' % name)
+            #    logger.info('Channel %s contains non-finite values! Skipping ...', name)
+            #    continue
+            fill_gaps(auxdata)
+
             if (auxdata == auxdata[0]).all():  # skip constant channel, leave residual as inf
                 continue
             auxdata -= auxdata.mean()  # make polyfit better conditioned? should not matter for correlation

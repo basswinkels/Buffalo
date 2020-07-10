@@ -19,7 +19,6 @@ from gwpy.time import from_gps
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
-
 class Points(object):
     def __init__(self, ax, color):
         self.ax = ax
@@ -126,7 +125,6 @@ class Veto(object):
 
 
 
-
 ## parse command line
 
 parser = argparse.ArgumentParser(description='GUI to plot spectrogram and track lines')
@@ -134,7 +132,8 @@ parser.add_argument('--input', help="input file for timeseries")
 
 args = parser.parse_args()
 
-# get input data
+
+## get input data
 
 data = TimeSeries.read(args.input)  # assume single channel for now
 # cannot store private attributes, get it from name
@@ -160,7 +159,7 @@ for f_out in allowed_f_out[::-1]:
         continue
     allowed_nfft.append(nfft)
 
-assert nfft, 'no valid nfft'
+assert allowed_nfft, 'no valid nfft'
 
 print 'allowed_nfft:', allowed_nfft
 
@@ -168,7 +167,7 @@ tmax = len(data) * data.dt.value
 xgrid = np.linspace(0, tmax, 1000)  # for extrapolation
 
 
-## prepare plots
+# prepare plots
 
 fig, [[time_cut_ax, dummy_ax], [spec_ax, freq_cut_ax]] = plt.subplots(
     2, 2, gridspec_kw={'width_ratios': [20, 1], 'height_ratios': [1,10],
@@ -197,7 +196,6 @@ hline = freq_cut_ax.axhline(np.nan, c='r', lw=1)
 vline = time_cut_ax.axvline(np.nan, c='r', lw=1)
 
 
-
 g0 = data.t0.value
 spec_ax.set_xlabel('Time (s) after gps = {:d} ({:%Y-%m-%d %H:%M:%S} UTC)'.format(int(g0), from_gps(g0)))
 spec_ax.set_ylabel('Frequency (Hz)')
@@ -219,6 +217,7 @@ points = [
 
 Z = F = T = S = None
 
+
 def update_specgram():
     global Z, F, T, S
 
@@ -231,8 +230,9 @@ def update_specgram():
     F += f_demod
     
     # divide by median to make changes more pronounced
-    # med = np.median(spec, axis=1)
-    # spec /= med[:,np.newaxis]
+    # todo: toggle this with 'n' or so
+    med = np.nanmedian(S, axis=1)
+    S /= med[:, np.newaxis]
 
     S = blockaver(S, navg)
     T = blockaver(T, navg)
@@ -248,7 +248,9 @@ def update_specgram():
     # Z[np.isinf(Z)] = np.nan  # hide -inf due to log(0)
 
     spec_im.set_data(Z)
-    spec_im.set_clim((np.nanmin(Z), np.nanmax(Z)))
+
+    if clim is None:
+        reset_clim()
 
 
 # initial state
@@ -256,6 +258,7 @@ navg = 1
 cid_click = None
 state = 0
 nfft = allowed_nfft[len(allowed_nfft) // 2]
+clim = None
 
 
 def update_title():
@@ -343,7 +346,6 @@ def on_key(event):
         print 'Saving frequency to file', fname
         freq_out.write(fname, path='peak_freq')
 
-    
     if event.key == 'b':
         if len(brms_dots.get_xdata()):
             brms_dots.set_data([], [])
@@ -358,7 +360,7 @@ def on_key(event):
                 fmin = np.full_like(T, -np.inf)
             fmax = points[3].extrapolate(T)
             if fmax is None:
-                    fmax = np.full_like(T, np.inf)
+                fmax = np.full_like(T, np.inf)
 
             if not np.all(fmax > fmin):
                 print 'line 3 must be above line 2'
@@ -387,6 +389,10 @@ def on_key(event):
         print 'Saving brms to file', fname
         brms_out.write(fname, path='brms')
 
+    if event.key == 'H':  # reset color axis
+        print 'Resetting color axis'
+        reset_clim()
+
         
     update_title()
     plt.draw()
@@ -406,22 +412,62 @@ def onmove(event):
             i_freq = np.argmin(np.abs(F - event.ydata))
             cut = Z[i_freq, :]
             time_cut.set_data(T, cut)
-            time_cut_ax.axis(spec_ax.get_xlim() + (np.nanmin(Z), np.nanmax(Z)))  # fixme: use im.get_clim() of specgram
+            # time_cut_ax.axis(spec_ax.get_xlim() + (np.nanmin(Z), np.nanmax(Z)))
+            time_cut_ax.axis(spec_ax.get_xlim() + clim)
             vline.set_xdata(event.xdata)
 
         i_time = np.argmin(np.abs(T - event.xdata))
         cut = Z[:, i_time]
         freq_cut.set_data(cut, F)
-        freq_cut_ax.axis((np.nanmin(Z), np.nanmax(Z)) + spec_ax.get_ylim())
+        #freq_cut_ax.axis((np.nanmin(Z), np.nanmax(Z)) + spec_ax.get_ylim())
+        freq_cut_ax.axis(clim + spec_ax.get_ylim())
+        # freq_cut_ax.set_xlim(spec_im.get_clim())
         hline.set_ydata(event.ydata)
 
         plt.draw()
 
+def set_clim(new_clim):
+    global clim
 
-cid_move = fig.canvas.mpl_connect('motion_notify_event', onmove)
+    if new_clim != clim:  # avoid infinite recursion
+        clim = new_clim
+        spec_im.set_clim(new_clim)
+        time_cut_ax.set_ylim(new_clim)
+        freq_cut_ax.set_xlim(new_clim)
+
+
+def reset_clim():
+    set_clim((np.nanmin(Z), np.nanmax(Z)))
+
+
+#https://stackoverflow.com/a/42974975
+spec_ax.get_shared_x_axes().join(spec_ax, time_cut_ax)
+spec_ax.get_shared_y_axes().join(spec_ax, freq_cut_ax)
+
+
+def on_clims_change(ax):
+    if ax is time_cut_ax:
+        if len(brms_dots.get_xdata()):
+            return  # BRMS plot
+        name = 'time_cut'
+        clim = ax.get_ylim()
+    elif ax is freq_cut_ax:
+        name = 'freq_cut'
+        clim = ax.get_xlim()
+    else:
+        assert False
+    import time
+    print time.time(), 'xlim', name, clim
+    set_clim(clim)
+
 
 update_specgram()
 update_title()
+
+cid_move = fig.canvas.mpl_connect('motion_notify_event', onmove)
+time_cut_ax.callbacks.connect('ylim_changed', on_clims_change)
+freq_cut_ax.callbacks.connect('xlim_changed', on_clims_change)
+
 plt.show()
 
 print 'Finished!'

@@ -2,7 +2,7 @@
 
 from __future__ import division, print_function
 import argparse
-from gwpy.time import to_gps
+from gwpy.time import to_gps, from_gps
 
 parser = argparse.ArgumentParser(description='Tool to plot correlation')
 parser.add_argument('--source', required=True,
@@ -51,7 +51,7 @@ if args.chan is None:
 
 span = seg.Segment(float(args.start), float(args.end))  # get rid of LIGOTimeGPS
 
-data = TimeSeries.read(args.source, args.chan)
+data = TimeSeries.read(args.source, args.chan, start=float(args.start), end=float(args.end))
 span &= data.span
 data = data.crop(*span)
 nsamp = expect_almost_int(abs(span) * args.f_target)
@@ -68,15 +68,14 @@ daux = aux.data
 daux = fast_resample(daux, args.f_target / aux.fsample)
 
 
-
 p = np.polyfit(daux[good], dref[good], args.fit_order)
 
 t = np.arange(nsamp) / args.f_target
 
 if False:
     plt.plot(daux, dref, '.b', daux, np.polyval(p, daux), 'r')
-    plt.xlabel(aux.name)
-    plt.ylabel(data.name)
+    #plt.xlabel(aux.name)
+    #plt.ylabel(data.name)
     plt.show()
 
 if False:
@@ -90,9 +89,10 @@ if False:
     plt.show()
 
 if True:
-    plt.plot(t, np.polyval(p, daux), t, dref, '.')
-    plt.legend((args.aux_chan, args.target_name))
-    plt.xlabel('Time (s)')
-    plt.ylabel('%s (%s)' % (args.target_name, data.unit))
-    plt.title('%s = %s' % (args.target_name, poly2latex(p, args.aux_chan)))
+    target_name =  'target'  # args.target_name[3:]  # 'line frequency'
+    plt.plot(t, dref, '.', t, np.polyval(p, daux))
+    plt.legend((target_name, args.aux_chan))
+    plt.xlabel('Time (s) starting from gps = %i' % span[0])
+    plt.ylabel('%s (%s)' % (target_name, data.unit))
+    plt.title('%s = %s' % (target_name, poly2latex(p, args.aux_chan[3:])))
     plt.show()
