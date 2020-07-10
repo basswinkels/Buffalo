@@ -80,6 +80,19 @@ def next_bigger(a, x):
         return a[-1]
     return a[i]
 
+
+def fill_gaps(x):
+    """replaces non-finite elements by interpolation in-place"""
+    v = np.isfinite(x)
+    if v.all():
+        return
+
+    igood, = v.nonzero()
+    ibad, = (~v).nonzero()
+
+    x[ibad] = np.interp(ibad, igood, x[igood])
+
+
 def read_virgo_timeseries(source, channel, gstart, gstop_or_dur):
     """quick and dirty function to read virgo data as timeseries. this should one day be included in gwpy"""
 
